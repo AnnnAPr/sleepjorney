@@ -39,35 +39,35 @@ export const AUDIO_ITEMS: AudioItem[] = [
     title: 'Thunderstorm',
     src: '/sounds/thunder.mp3',
     type: 'sound',
-    premium: true
+    premium: false
   },
   {
     id: 'forest',
     title: 'Forest',
     src: '/sounds/forest.mp3',
     type: 'sound',
-    premium: true
+    premium: false
   },
   {
     id: 'ocean',
-    title: 'Ocean Waves',
+    title: 'Ocean',
     src: '/sounds/ocean.mp3',
     type: 'sound',
-    premium: true
+    premium: false
   },
-  // {
-  //   id: 'wind',
-  //   title: 'Strong Wind',
-  //   src: '/sounds/wind.mp3',
-  //   type: 'sound',
-  //   premium: true
-  // },
+  {
+    id: 'wind',
+    title: 'Wind',
+    src: '/sounds/wind.mp3',
+    type: 'sound',
+    premium: false
+  },
   {
     id: 'train',
-    title: 'Train Cabin',
+    title: 'Train',
     src: '/sounds/train.wav',
     type: 'sound',
-    premium: true
+    premium: false
   },
 
   // Paid music
@@ -76,20 +76,20 @@ export const AUDIO_ITEMS: AudioItem[] = [
     title: 'Deep Drone',
     src: '/sounds/deep.mp3',
     type: 'music',
-    premium: true
+    premium: false
   },
   {
     id: 'piano',
     title: 'Soft Piano',
     src: '/sounds/piano.mp3',
     type: 'music',
-    premium: true
+    premium: false
   },
-  {
-    id: 'space',
-    title: 'Space Ambient',
-    src: '/sounds/space.mp3',
-    type: 'music',
-    premium: true
-  }
+  // {
+  //   id: 'space',
+  //   title: 'Space Ambient',
+  //   src: '/sounds/space.mp3',
+  //   type: 'music',
+  //   premium: false
+  // }
 ];

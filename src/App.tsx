@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import './index.css';
 import './i18n';
 import { useTranslation } from 'react-i18next';
@@ -21,7 +21,7 @@ import {
 
 import SortableItem from './components/SortableItem';
 
-const TIMER_OPTIONS = [15, 30, 60, 120];
+const TIMER_OPTIONS = [1, 15, 30, 60, 120];
 
 const App = () => {
   const { t } = useTranslation();
@@ -32,10 +32,19 @@ const App = () => {
   const [activeTimer, setActiveTimer] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
-  const timer = useTimer(() => {
+  const onEnd = useCallback(() => {
+    console.log('App: Timer ended, stopping playback');
     audioPlayer.reset();
     setIsPlaying(false);
-  });
+  }, []);
+
+  const timer = useTimer(onEnd);
+
+  const formatTime = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const toggleItem = (item: AudioItem): void => {
     if (item.premium && !isPremium) {
@@ -45,41 +54,28 @@ const App = () => {
 
     setSelected((prev) => {
       const exists = prev.find((i) => i.id === item.id);
-      const newSelected = exists
+      return exists
         ? prev.filter((i) => i.id !== item.id)
         : [...prev, item];
-
-      // Sync player queue if playing
-      if (isPlaying) {
-        audioPlayer.setQueue(newSelected);
-        if (newSelected.length === 0) {
-          audioPlayer.stop();
-          timer.stop();
-          setIsPlaying(false);
-        }
-      }
-
-      return newSelected;
     });
   };
 
   const removeFromQueue = (id: string): void => {
-    setSelected((prev) => {
-      const newSelected = prev.filter((i) => i.id !== id);
-
-      if (isPlaying) {
-        audioPlayer.reset();
-        audioPlayer.setQueue(newSelected);
-        if (newSelected.length > 0) {
-          audioPlayer.play();
-        } else {
-          timer.stop();
-          setIsPlaying(false);
-        }
+    setSelected((prev) => prev.filter((i) => i.id !== id));
+    
+    // If we're playing, we want to immediately skip to the new first sound 
+    // or stop if the list is now empty.
+    if (isPlaying) {
+      const newSelected = selected.filter(i => i.id !== id);
+      audioPlayer.reset();
+      audioPlayer.setQueue(newSelected);
+      if (newSelected.length > 0) {
+        audioPlayer.play();
+      } else {
+        timer.stop();
+        setIsPlaying(false);
       }
-
-      return newSelected;
-    });
+    }
   };
 
   const handleDragEnd = (event: DragEndEvent): void => {
@@ -87,37 +83,51 @@ const App = () => {
 
     if (!over || active.id === over.id) return;
 
-    setSelected((items) => {
-      const oldIndex = items.findIndex((i) => i.id === active.id);
-      const newIndex = items.findIndex((i) => i.id === over.id);
-      const newSelected = arrayMove(items, oldIndex, newIndex);
+    const oldIndex = selected.findIndex((i) => i.id === active.id);
+    const newIndex = selected.findIndex((i) => i.id === over.id);
+    const newSelected = arrayMove(selected, oldIndex, newIndex);
 
-      if (isPlaying) {
-        audioPlayer.reset();
-        audioPlayer.setQueue(newSelected);
-        audioPlayer.play();
-        // Timer remains unchanged as per discussion
-      }
+    setSelected(newSelected);
 
-      return newSelected;
-    });
+    if (isPlaying) {
+      audioPlayer.reset();
+      audioPlayer.setQueue(newSelected);
+      audioPlayer.play();
+    }
   };
+
+  // Sync Queue while playing (for toggleItem adding)
+  useEffect(() => {
+    if (isPlaying) {
+      audioPlayer.setQueue(selected);
+    }
+  }, [selected, isPlaying]);
 
   const togglePlayback = (): void => {
     if (selected.length === 0) return;
 
     if (isPlaying) {
+      console.log('App: Pausing playback');
       audioPlayer.stop();
       timer.stop();
       setIsPlaying(false);
     } else {
-      audioPlayer.setQueue(selected);
-      audioPlayer.play();
+      console.log('App: Resuming or starting playback');
+      
+      // If we have a paused timer, resume it. 
+      // Otherwise start a fresh session.
+      if (timer.seconds > 0) {
+        audioPlayer.play();
+        timer.resume();
+      } else {
+        audioPlayer.reset();
+        audioPlayer.setQueue(selected);
+        audioPlayer.play();
 
-      const minutes = activeTimer ?? customMinutes;
-
-      if (minutes > 0) {
-        timer.start(minutes);
+        const minutes = activeTimer ?? customMinutes;
+        if (minutes > 0) {
+          timer.start(minutes);
+        }
       }
 
       setIsPlaying(true);
@@ -128,7 +138,12 @@ const App = () => {
     <div className="container">
       <h1>SleepJorney</h1>
 
-      <h2>{t('timer')}</h2>
+      <div className="timer-header">
+        <h2>{t('timer')}</h2>
+        {timer.seconds > 0 && (
+          <span className="timer-countdown">{formatTime(timer.seconds)}</span>
+        )}
+      </div>
 
       {TIMER_OPTIONS.map((value) => (
         <button
@@ -137,6 +152,12 @@ const App = () => {
           onClick={() => {
             setActiveTimer(value);
             setCustomMinutes(0);
+            // If playing, immediately switch to the new timer
+            if (isPlaying) {
+              timer.start(value);
+            } else {
+              timer.reset(); // Clear any paused state if we pick a new setting
+            }
           }}
         >
           {value}
@@ -148,8 +169,15 @@ const App = () => {
         placeholder={t('custom')}
         value={customMinutes || ''}
         onChange={(e) => {
-          setCustomMinutes(Number(e.target.value));
+          const val = Number(e.target.value);
+          setCustomMinutes(val);
           setActiveTimer(null);
+          // If playing, immediately switch to the new timer
+          if (isPlaying && val > 0) {
+            timer.start(val);
+          } else if (!isPlaying) {
+            timer.reset();
+          }
         }}
       />
 
@@ -176,7 +204,7 @@ const App = () => {
       <h2>Sounds & Music</h2>
 
       <div className="list">
-        {AUDIO_ITEMS.map((item) => (
+        {AUDIO_ITEMS.filter(item => !selected.find(s => s.id === item.id)).map((item) => (
           <div key={item.id} className="list-item">
             <button className="button" onClick={() => toggleItem(item)}>
               {item.title} {item.premium ? '🔒' : ''}
@@ -184,6 +212,8 @@ const App = () => {
           </div>
         ))}
       </div>
+
+
 
       <br />
 

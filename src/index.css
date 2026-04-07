@@ -73,3 +73,22 @@ h1 {
 .list-item span {
   flex: 1;
 }
+
+.timer-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.timer-header h2 {
+  margin: 0;
+}
+
+.timer-countdown {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #3b82f6;
+  background: #1e3a5f;
+  padding: 3px 10px;
+  border-radius: 8px;
+}
