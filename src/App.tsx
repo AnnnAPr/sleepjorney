@@ -36,6 +36,9 @@ const App = () => {
     console.log('App: Timer ended, stopping playback');
     audioPlayer.reset();
     setIsPlaying(false);
+    // Clear timer selection so next Play starts without a timer
+    setActiveTimer(null);
+    setCustomMinutes(0);
   }, []);
 
   const timer = useTimer(onEnd);
