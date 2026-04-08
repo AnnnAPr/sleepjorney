@@ -20,7 +20,7 @@ const resources = {
       "Ocean": "Ocean",
       "Wind": "Wind",
       "Train": "Train",
-      "Deep Drone": "Deep Drone",
+      "Deep Sleep": "Deep Sleep",
       "Soft Piano": "Soft Piano",
       translationNote: "Note: Translations are automatically generated and may contain inaccuracies."
     }
@@ -43,7 +43,7 @@ const resources = {
       "Ocean": "Océano",
       "Wind": "Viento",
       "Train": "Tren",
-      "Deep Drone": "Dron Profundo",
+      "Deep Sleep": "Sueño Profundo",
       "Soft Piano": "Piano Suave",
       translationNote: "Nota: Las traducciones fueron generadas automáticamente y pueden no ser exactas."
     }

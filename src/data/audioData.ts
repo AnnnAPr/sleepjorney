@@ -73,7 +73,7 @@ export const AUDIO_ITEMS: AudioItem[] = [
   // Paid music
   {
     id: 'deep_drone',
-    title: 'Deep Drone',
+    title: 'Deep Sleep',
     src: '/sounds/deep.mp3',
     type: 'music',
     premium: true

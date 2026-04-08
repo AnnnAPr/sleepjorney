@@ -256,7 +256,7 @@ const App = () => {
         {AUDIO_ITEMS.filter(item => !selected.find(s => s.id === item.id)).map((item) => (
           <div key={item.id} className="list-item">
             <button className="button" onClick={() => toggleItem(item)}>
-              {t(item.title)} {item.premium ? '🔒' : ''}
+              {t(item.title)} {item.premium && !isPremium ? '🔒' : ''}
             </button>
           </div>
         ))}
