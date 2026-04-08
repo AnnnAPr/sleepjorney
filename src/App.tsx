@@ -176,9 +176,11 @@ const App = () => {
       <input
         type="number"
         placeholder={t('custom')}
+        max={720}
         value={customMinutes || ''}
         onChange={(e) => {
-          const val = Number(e.target.value);
+          let val = Number(e.target.value);
+          if (val > 720) val = 720;
           setCustomMinutes(val);
           setActiveTimer(null);
           // If playing, immediately switch to the new timer
