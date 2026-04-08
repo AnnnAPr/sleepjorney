@@ -10,6 +10,11 @@ import { useTimer } from './hooks/useTimer';
 import {
   DndContext,
   closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
 } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 
@@ -31,6 +36,21 @@ const App = () => {
   const [customMinutes, setCustomMinutes] = useState<number>(0);
   const [activeTimer, setActiveTimer] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5, // Requires minimum 5px drag distance before picking up the item
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250, // Long press for 250ms to pick up (most reliable on Android)
+        tolerance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor)
+  );
 
   const onEnd = useCallback(() => {
     console.log('App: Timer ended, stopping playback');
@@ -194,7 +214,7 @@ const App = () => {
 
       <h2>{t('selected')}</h2>
 
-      <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext
           items={selected.map((item) => item.id)}
           strategy={verticalListSortingStrategy}

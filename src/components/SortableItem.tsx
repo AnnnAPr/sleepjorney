@@ -23,7 +23,7 @@ const SortableItem = ({ id, title, onRemove }: Props) => {
 
   return (
     <div ref={setNodeRef} style={style} className="list-item">
-      <span {...attributes} {...listeners} style={{ cursor: 'grab' }}>
+      <span {...attributes} {...listeners} style={{ cursor: 'grab', touchAction: 'none' }}>
         ☰ {title}
       </span>
 
