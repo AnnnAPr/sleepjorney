@@ -3,6 +3,13 @@ import type { AudioItem } from '../types/audio';
 export const AUDIO_ITEMS: AudioItem[] = [
   // Free sounds
   {
+    id: 'mur_purr',
+    title: 'Mur Purr',
+    src: '/sounds/purr.mp3',
+    type: 'sound',
+    premium: false
+  },
+  {
     id: 'rain',
     title: 'Rain',
     src: '/sounds/rain.mp3',

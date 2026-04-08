@@ -158,8 +158,20 @@ const App = () => {
 
   return (
     <div className="container">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>SleepJorney</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '35px' }}>
+          <h1 style={{ margin: 0 }}>SleepJorney</h1>
+          <img 
+            src="/cat.png" 
+            alt="Orange Cat" 
+            style={{ 
+              width: '108px', 
+              height: '66px', 
+              borderRadius: '36px', 
+              objectFit: 'cover'
+            }}
+          />
+        </div>
         <div>
           <button 
             className="button" 
@@ -255,8 +267,21 @@ const App = () => {
       <div className="list">
         {AUDIO_ITEMS.filter(item => !selected.find(s => s.id === item.id)).map((item) => (
           <div key={item.id} className="list-item">
-            <button className="button" onClick={() => toggleItem(item)}>
-              {t(item.title)} {item.premium && !isPremium ? '🔒' : ''}
+            <button 
+              className="button" 
+              onClick={() => toggleItem(item)}
+              style={item.id === 'mur_purr' ? { background: 'transparent', padding: 0, border: 'none', boxShadow: 'none', display: 'flex', alignItems: 'center' } : undefined}
+            >
+              {item.id === 'mur_purr' ? (
+                <img 
+                  src="/cat.png" 
+                  alt="Orange Cat" 
+                  style={{ height: '48px', width: 'auto', borderRadius: '6px', margin: '-6px 0 -6px -4px' }} 
+                />
+              ) : (
+                t(item.title)
+              )}
+              {item.premium && !isPremium ? ' 🔒' : ''}
             </button>
           </div>
         ))}

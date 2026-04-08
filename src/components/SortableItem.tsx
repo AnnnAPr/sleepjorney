@@ -24,7 +24,15 @@ const SortableItem = ({ id, title, onRemove }: Props) => {
   return (
     <div ref={setNodeRef} style={style} className="list-item">
       <span {...attributes} {...listeners} style={{ cursor: 'grab', touchAction: 'none' }}>
-        ☰ {title}
+        {id === 'mur_purr' ? (
+          <img 
+            src="/cat.png" 
+            alt="Orange Cat" 
+            style={{ width: '68px', height: '45px', borderRadius: '23px', objectFit: 'cover', verticalAlign: 'middle' }} 
+          />
+        ) : (
+          <>☰ {title}</>
+        )}
       </span>
 
       <button className="remove-btn" onClick={() => onRemove(id)}>

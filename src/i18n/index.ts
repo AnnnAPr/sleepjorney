@@ -22,6 +22,7 @@ const resources = {
       "Train": "Train",
       "Deep Sleep": "Deep Sleep",
       "Soft Piano": "Soft Piano",
+      "Mur Purr": "Mur Purr",
       translationNote: "Note: Translations are automatically generated and may contain inaccuracies."
     }
   },
@@ -45,6 +46,7 @@ const resources = {
       "Train": "Tren",
       "Deep Sleep": "Sueño Profundo",
       "Soft Piano": "Piano Suave",
+      "Mur Purr": "Ronroneo",
       translationNote: "Nota: Las traducciones fueron generadas automáticamente y pueden no ser exactas."
     }
   }
