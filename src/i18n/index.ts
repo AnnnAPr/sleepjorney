@@ -9,17 +9,43 @@ const resources = {
       unlock: 'Unlock Premium',
       timer: 'Timer',
       custom: 'Custom (min)',
-      selected: 'Selected Queue'
+      selected: 'Selected Queue',
+      soundsAndMusic: 'Sounds & Music',
+      "Rain": "Rain",
+      "White Noise": "White Noise",
+      "Fireplace": "Fireplace",
+      "Dream": "Dream",
+      "Thunderstorm": "Thunderstorm",
+      "Forest": "Forest",
+      "Ocean": "Ocean",
+      "Wind": "Wind",
+      "Train": "Train",
+      "Deep Drone": "Deep Drone",
+      "Soft Piano": "Soft Piano",
+      translationNote: "Note: Translations are automatically generated and may contain inaccuracies."
     }
   },
   es: {
     translation: {
-      play: 'Reproducir',
-      stop: 'Detener',
+      play: 'Jugar',
+      stop: 'Parar',
       unlock: 'Desbloquear Premium',
-      timer: 'Temporizador',
+      timer: 'Minutero',
       custom: 'Personalizado (min)',
-      selected: 'Cola seleccionada'
+      selected: 'Cola Seleccionada',
+      soundsAndMusic: 'Sonidos y Música',
+      "Rain": "Lluvia",
+      "White Noise": "Ruido Blanco",
+      "Fireplace": "Chimenea",
+      "Dream": "Soñar",
+      "Thunderstorm": "Tormenta",
+      "Forest": "Bosque",
+      "Ocean": "Océano",
+      "Wind": "Viento",
+      "Train": "Tren",
+      "Deep Drone": "Dron Profundo",
+      "Soft Piano": "Piano Suave",
+      translationNote: "Nota: Las traducciones fueron generadas automáticamente y pueden no ser exactas."
     }
   }
 };

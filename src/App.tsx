@@ -29,7 +29,7 @@ import SortableItem from './components/SortableItem';
 const TIMER_OPTIONS = [1, 15, 30, 60, 120];
 
 const App = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const [selected, setSelected] = useState<AudioItem[]>([]);
   const [isPremium, setIsPremium] = useState<boolean>(false);
@@ -158,7 +158,25 @@ const App = () => {
 
   return (
     <div className="container">
-      <h1>SleepJorney</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1>SleepJorney</h1>
+        <div>
+          <button 
+            className="button" 
+            style={{ opacity: i18n.language === 'en' ? 1 : 0.5, padding: '4px 8px' }} 
+            onClick={() => i18n.changeLanguage('en')}
+          >
+            EN
+          </button>
+          <button 
+            className="button" 
+            style={{ opacity: i18n.language === 'es' ? 1 : 0.5, padding: '4px 8px' }} 
+            onClick={() => i18n.changeLanguage('es')}
+          >
+            ES
+          </button>
+        </div>
+      </div>
 
       <div className="timer-header">
         <h2>{t('timer')}</h2>
@@ -224,7 +242,7 @@ const App = () => {
               <SortableItem
                 key={item.id}
                 id={item.id}
-                title={item.title}
+                title={t(item.title)}
                 onRemove={removeFromQueue}
               />
             ))}
@@ -232,13 +250,13 @@ const App = () => {
         </SortableContext>
       </DndContext>
 
-      <h2>Sounds & Music</h2>
+      <h2>{t('soundsAndMusic')}</h2>
 
       <div className="list">
         {AUDIO_ITEMS.filter(item => !selected.find(s => s.id === item.id)).map((item) => (
           <div key={item.id} className="list-item">
             <button className="button" onClick={() => toggleItem(item)}>
-              {item.title} {item.premium ? '🔒' : ''}
+              {t(item.title)} {item.premium ? '🔒' : ''}
             </button>
           </div>
         ))}
@@ -261,6 +279,12 @@ const App = () => {
         <button className="button" onClick={() => setIsPremium(true)}>
           {t('unlock')}
         </button>
+      )}
+
+      {i18n.language !== 'en' && (
+        <p style={{ fontSize: '0.8rem', color: '#9ca3af', marginTop: '30px', textAlign: 'center', fontStyle: 'italic' }}>
+          {t('translationNote')}
+        </p>
       )}
     </div>
   );

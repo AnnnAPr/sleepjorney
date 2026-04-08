@@ -39,35 +39,35 @@ export const AUDIO_ITEMS: AudioItem[] = [
     title: 'Thunderstorm',
     src: '/sounds/thunder.mp3',
     type: 'sound',
-    premium: false
+    premium: true
   },
   {
     id: 'forest',
     title: 'Forest',
     src: '/sounds/forest.mp3',
     type: 'sound',
-    premium: false
+    premium: true
   },
   {
     id: 'ocean',
     title: 'Ocean',
     src: '/sounds/ocean.mp3',
     type: 'sound',
-    premium: false
+    premium: true
   },
   {
     id: 'wind',
     title: 'Wind',
     src: '/sounds/wind.mp3',
     type: 'sound',
-    premium: false
+    premium: true
   },
   {
     id: 'train',
     title: 'Train',
     src: '/sounds/train.wav',
     type: 'sound',
-    premium: false
+    premium: true
   },
 
   // Paid music
@@ -76,20 +76,13 @@ export const AUDIO_ITEMS: AudioItem[] = [
     title: 'Deep Drone',
     src: '/sounds/deep.mp3',
     type: 'music',
-    premium: false
+    premium: true
   },
   {
     id: 'piano',
     title: 'Soft Piano',
     src: '/sounds/piano.mp3',
     type: 'music',
-    premium: false
-  },
-  // {
-  //   id: 'space',
-  //   title: 'Space Ambient',
-  //   src: '/sounds/space.mp3',
-  //   type: 'music',
-  //   premium: false
-  // }
+    premium: true
+  }
 ];
