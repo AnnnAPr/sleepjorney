@@ -26,9 +26,9 @@ export const AUDIO_ITEMS: AudioItem[] = [
 
   // Free music
   {
-    id: 'ambient_free',
-    title: 'Ambient',
-    src: '/sounds/ambient.mp3',
+    id: 'dream',
+    title: 'Dream',
+    src: '/sounds/dream.mp3',
     type: 'music',
     premium: false
   },

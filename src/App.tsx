@@ -36,7 +36,6 @@ const App = () => {
     console.log('App: Timer ended, stopping playback');
     audioPlayer.reset();
     setIsPlaying(false);
-    // Clear timer selection so next Play starts without a timer
     setActiveTimer(null);
     setCustomMinutes(0);
   }, []);
@@ -146,6 +145,13 @@ const App = () => {
         {timer.seconds > 0 && (
           <span className="timer-countdown">{formatTime(timer.seconds)}</span>
         )}
+        <button
+          className={`button ${isPlaying ? 'stop' : 'primary'}`}
+          onClick={togglePlayback}
+          style={{ marginLeft: 'auto', padding: '6px 12px', fontSize: '0.9rem' }}
+        >
+          {isPlaying ? t('stop') : t('play')}
+        </button>
       </div>
 
       {TIMER_OPTIONS.map((value) => (
