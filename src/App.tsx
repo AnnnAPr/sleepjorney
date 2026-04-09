@@ -32,6 +32,7 @@ const App = () => {
   const [isPremium, setIsPremium] = useState<boolean>(false);
   const [customMinutes, setCustomMinutes] = useState<number>(0);
   const [activeTimer, setActiveTimer] = useState<number | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playMode, setPlayMode] = useState<'all' | 'one'>('all');
   const [queueIndex, setQueueIndex] = useState<number>(0);
@@ -86,7 +87,7 @@ const App = () => {
 
   const toggleItem = (item: AudioItem): void => {
     if (item.premium && !isPremium) {
-      alert(t('unlock'));
+      setIsModalOpen(true);
       return;
     }
 
@@ -418,7 +419,7 @@ const App = () => {
       <br /><br />
 
       {!isPremium && (
-        <button className="button" onClick={() => setIsPremium(true)}>
+        <button className="button" onClick={() => setIsModalOpen(true)}>
           {t('unlock')}
         </button>
       )}
@@ -427,6 +428,34 @@ const App = () => {
         <p style={{ fontSize: '0.8rem', color: '#9ca3af', marginTop: '30px', textAlign: 'center', fontStyle: 'italic' }}>
           {t('translationNote')}
         </p>
+      )}
+
+      {isModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="premium-crown">👑</div>
+            <h2>{t('unlock')}</h2>
+            <p>Get full access to all premium sounds and music forever.</p>
+            <div className="premium-price">$2.99</div>
+            <ul className="premium-features">
+              <li>✨ All locked sounds unlocked</li>
+              <li>🎵 Exclusive music tracks</li>
+              <li>🚀 One-time lifetime access</li>
+            </ul>
+            <button 
+              className="button premium-buy" 
+              onClick={() => {
+                setIsPremium(true);
+                setIsModalOpen(false);
+              }}
+            >
+              Unlock Now
+            </button>
+            <button className="button-text" onClick={() => setIsModalOpen(false)}>
+              Maybe Later
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
