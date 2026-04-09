@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 
 export const useTimer = (onEnd: () => void) => {
   const [seconds, setSeconds] = useState<number>(0);
+  const [totalSeconds, setTotalSeconds] = useState<number>(0);
   const intervalRef = useRef<number | null>(null);
 
   const stop = useCallback((): void => {
@@ -14,11 +15,13 @@ export const useTimer = (onEnd: () => void) => {
   const reset = useCallback((): void => {
     stop();
     setSeconds(0);
+    setTotalSeconds(0);
   }, [stop]);
 
   const start = useCallback((minutes: number): void => {
-    const totalSeconds = Math.floor(minutes * 60);
-    setSeconds(totalSeconds);
+    const total = Math.floor(minutes * 60);
+    setSeconds(total);
+    setTotalSeconds(total);
 
     stop();
 
@@ -55,9 +58,10 @@ export const useTimer = (onEnd: () => void) => {
 
   return useMemo(() => ({
     seconds,
+    totalSeconds,
     start,
     stop,
     reset,
     resume
-  }), [seconds, start, stop, reset, resume]);
+  }), [seconds, totalSeconds, start, stop, reset, resume]);
 };

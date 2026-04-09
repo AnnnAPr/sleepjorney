@@ -6,4 +6,5 @@ export type AudioItem = {
   src: string;
   type: AudioType;
   premium: boolean;
+  volume?: number;
 };

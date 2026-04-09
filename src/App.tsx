@@ -6,27 +6,24 @@ import { AUDIO_ITEMS } from './data/audioData';
 import type { AudioItem } from './types/audio';
 import { audioPlayer } from './audio/player';
 import { useTimer } from './hooks/useTimer';
-
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
-import type { DragEndEvent } from '@dnd-kit/core';
-
-import {
-  SortableContext,
-  arrayMove,
-  verticalListSortingStrategy
-} from '@dnd-kit/sortable';
-
-import SortableItem from './components/SortableItem';
+import { useDragSort } from './hooks/useDragSort';
 
 const TIMER_OPTIONS = [1, 15, 30, 60, 120];
+
+// Defined outside the component: no closures, no hooks, no stale refs.
+function playSequential(
+  index: number,
+  queue: AudioItem[],
+  onIndexChange: (i: number) => void
+): void {
+  if (queue.length === 0) return;
+  const safeIndex = index % queue.length;
+  audioPlayer.playSingle(queue[safeIndex], () => {
+    const nextIndex = (safeIndex + 1) % queue.length;
+    onIndexChange(nextIndex);
+    playSequential(nextIndex, queue, onIndexChange);
+  });
+}
 
 const App = () => {
   const { t, i18n } = useTranslation();
@@ -36,24 +33,14 @@ const App = () => {
   const [customMinutes, setCustomMinutes] = useState<number>(0);
   const [activeTimer, setActiveTimer] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 5, // Requires minimum 5px drag distance before picking up the item
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 250, // Long press for 250ms to pick up (most reliable on Android)
-        tolerance: 5,
-      },
-    }),
-    useSensor(KeyboardSensor)
-  );
+  const [playMode, setPlayMode] = useState<'all' | 'one'>('all');
+  const [queueIndex, setQueueIndex] = useState<number>(0);
+  
+  // Track forces re-renders for volume changes when they happen directly on player
+  const [volumes, setVolumes] = useState<Record<string, number>>({});
 
   const onEnd = useCallback(() => {
-    console.log('App: Timer ended, stopping playback');
+
     audioPlayer.reset();
     setIsPlaying(false);
     setActiveTimer(null);
@@ -61,6 +48,35 @@ const App = () => {
   }, []);
 
   const timer = useTimer(onEnd);
+
+  // FADING LOGIC
+  useEffect(() => {
+    if (!isPlaying) return;
+    if (timer.totalSeconds <= 0) return;
+
+    // Threshold calculation: 5 mins if default, 60 seconds if < 5 mins
+    const threshold = timer.totalSeconds > 300 ? 300 : 60;
+
+    if (timer.seconds <= threshold && timer.seconds > 0) {
+      // Linear fade out
+      const calculatedVolume = timer.seconds / threshold;
+      audioPlayer.setGlobalVolume(calculatedVolume);
+    } else if (timer.seconds > threshold) {
+      audioPlayer.setGlobalVolume(1.0);
+    }
+  }, [timer.seconds, timer.totalSeconds, isPlaying]);
+
+  // Sync state with lock-screen commands
+  useEffect(() => {
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+    window.addEventListener('app_play', handlePlay);
+    window.addEventListener('app_pause', handlePause);
+    return () => {
+      window.removeEventListener('app_play', handlePlay);
+      window.removeEventListener('app_pause', handlePause);
+    };
+  }, []);
 
   const formatTime = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
@@ -84,76 +100,82 @@ const App = () => {
 
   const removeFromQueue = (id: string): void => {
     setSelected((prev) => prev.filter((i) => i.id !== id));
-    
-    // If we're playing, we want to immediately skip to the new first sound 
-    // or stop if the list is now empty.
-    if (isPlaying) {
-      const newSelected = selected.filter(i => i.id !== id);
-      audioPlayer.reset();
-      audioPlayer.setQueue(newSelected);
-      if (newSelected.length > 0) {
-        audioPlayer.play();
-      } else {
-        timer.stop();
-        setIsPlaying(false);
+  };
+
+  // Sync Mix while playing/adding/removing (only in 'all' mode)
+  useEffect(() => {
+    if (isPlaying && playMode === 'all') {
+      audioPlayer.syncTracks(selected);
+      // Auto-pause if we removed the last track — defer setState out of the effect body
+      if (selected.length === 0) {
+        audioPlayer.stop();
+        setTimeout(() => {
+          setIsPlaying(false);
+          timer.stop();
+        }, 0);
       }
     }
-  };
+  }, [selected, isPlaying, playMode, timer]);
 
-  const handleDragEnd = (event: DragEndEvent): void => {
-    const { active, over } = event;
-
-    if (!over || active.id === over.id) return;
-
-    const oldIndex = selected.findIndex((i) => i.id === active.id);
-    const newIndex = selected.findIndex((i) => i.id === over.id);
-    const newSelected = arrayMove(selected, oldIndex, newIndex);
-
-    setSelected(newSelected);
-
-    if (isPlaying) {
-      audioPlayer.reset();
-      audioPlayer.setQueue(newSelected);
-      audioPlayer.play();
-    }
-  };
-
-  // Sync Queue while playing (for toggleItem adding)
-  useEffect(() => {
-    if (isPlaying) {
-      audioPlayer.setQueue(selected);
-    }
-  }, [selected, isPlaying]);
+  const playCurrentInQueue = useCallback((index: number, queue: AudioItem[]) => {
+    playSequential(index, queue, setQueueIndex);
+  }, []);
 
   const togglePlayback = (): void => {
     if (selected.length === 0) return;
 
     if (isPlaying) {
-      console.log('App: Pausing playback');
+
       audioPlayer.stop();
       timer.stop();
       setIsPlaying(false);
     } else {
-      console.log('App: Resuming or starting playback');
-      
-      // If we have a paused timer, resume it. 
-      // Otherwise start a fresh session.
-      if (timer.seconds > 0) {
-        audioPlayer.play();
-        timer.resume();
-      } else {
-        audioPlayer.reset();
-        audioPlayer.setQueue(selected);
-        audioPlayer.play();
 
-        const minutes = activeTimer ?? customMinutes;
-        if (minutes > 0) {
-          timer.start(minutes);
+
+      if (playMode === 'one') {
+        // Sequential mode: play from current queue position
+        playCurrentInQueue(queueIndex, selected);
+      } else {
+        // All-at-once mode
+        if (timer.seconds > 0) {
+          audioPlayer.play();
+          timer.resume();
+        } else {
+          audioPlayer.reset();
+          audioPlayer.syncTracks(selected);
+          audioPlayer.play();
+
+          const minutes = activeTimer ?? customMinutes;
+          if (minutes > 0) {
+            timer.start(minutes);
+          }
         }
       }
 
       setIsPlaying(true);
     }
+  };
+
+  const handleVolumeChange = (id: string, volumeString: string) => {
+    const vol = parseFloat(volumeString);
+    audioPlayer.setTrackVolume(id, vol);
+    setVolumes(prev => ({ ...prev, [id]: vol }));
+  };
+
+  const drag = useDragSort<AudioItem>(selected, (newSelected) => {
+    setSelected(newSelected);
+    // Whenever order is changed while playing in 'Play queue' mode, the top sound should start to play.
+    if (isPlaying && playMode === 'one' && newSelected.length > 0) {
+      setQueueIndex(0);
+      playSequential(0, newSelected, setQueueIndex);
+    }
+  });
+
+  const onQueuePointerDown = (idx: number) => (e: React.PointerEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    // Don't start drag if clicking slider or button
+    if (target.tagName === 'INPUT' || target.closest('button')) return;
+    drag.onPointerDown(idx)(e);
   };
 
   return (
@@ -211,11 +233,10 @@ const App = () => {
           onClick={() => {
             setActiveTimer(value);
             setCustomMinutes(0);
-            // If playing, immediately switch to the new timer
             if (isPlaying) {
               timer.start(value);
             } else {
-              timer.reset(); // Clear any paused state if we pick a new setting
+              timer.reset();
             }
           }}
         >
@@ -233,7 +254,6 @@ const App = () => {
           if (val > 720) val = 720;
           setCustomMinutes(val);
           setActiveTimer(null);
-          // If playing, immediately switch to the new timer
           if (isPlaying && val > 0) {
             timer.start(val);
           } else if (!isPlaying) {
@@ -242,25 +262,124 @@ const App = () => {
         }}
       />
 
-      <h2>{t('selected')}</h2>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+        <h2 style={{ margin: 0 }}>{t('selected')}</h2>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
+          <button
+            className="button"
+            style={{ opacity: playMode === 'all' ? 1 : 0.5, padding: '4px 8px' }}
+            onClick={() => {
+              setPlayMode('all');
+              setQueueIndex(0);
+              if (isPlaying) {
+                audioPlayer.reset();
+                audioPlayer.syncTracks(selected);
+                audioPlayer.play();
+              }
+            }}
+          >
+            {t('playAll')}
+          </button>
+          <button
+            className="button"
+            style={{ opacity: playMode === 'one' ? 1 : 0.5, padding: '4px 8px' }}
+            onClick={() => {
+              setPlayMode('one');
+              setQueueIndex(0);
+              if (isPlaying) {
+                playCurrentInQueue(0, selected);
+              }
+            }}
+          >
+            {t('playOne')}
+          </button>
+        </div>
+      </div>
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext
-          items={selected.map((item) => item.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="list">
-            {selected.map((item) => (
-              <SortableItem
-                key={item.id}
-                id={item.id}
-                title={t(item.title)}
-                onRemove={removeFromQueue}
-              />
-            ))}
+      <div className="list">
+        {selected.length === 0 && <p style={{color: '#9ca3af', fontStyle: 'italic', fontSize: '0.9rem'}}>Empty. Select sounds below!</p>}
+        {selected.map((item, idx) => (
+          <div 
+            key={item.id} 
+            ref={drag.setItemRef(idx)}
+            className="list-item" 
+            onPointerDown={onQueuePointerDown(idx)}
+            onPointerMove={drag.onPointerMove}
+            onPointerUp={drag.onPointerUp}
+            onPointerCancel={drag.onPointerCancel}
+            style={{ 
+              flexDirection: 'column', 
+              alignItems: 'stretch',
+              padding: '8px 12px',
+              cursor: 'grab',
+              opacity: drag.dragIndex === idx ? 0.4 : 1,
+              borderTop: drag.hoverIndex === idx && drag.dragIndex !== null && drag.dragIndex !== idx 
+                ? '2px solid #3b82f6' 
+                : '2px solid transparent',
+              transition: drag.dragIndex === null ? 'opacity 0.2s' : 'none'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="drag-handle">
+                ⋮⋮
+              </div>
+              <span style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                {item.id === 'mur_purr' ? (
+                  <img src="/cat.png" alt="Cat" style={{ width: '45px', height: '30px', borderRadius: '15px', objectFit: 'cover', verticalAlign: 'middle', marginRight: '10px' }} />
+                ) : null}
+                {t(item.title)}
+              </span>
+              <button className="remove-btn" onClick={() => removeFromQueue(item.id)}>×</button>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={volumes[item.id] ?? audioPlayer.getTrackVolume(item.id, item.type)}
+              onChange={(e) => handleVolumeChange(item.id, e.target.value)}
+              style={{ marginTop: '4px', width: '100%' }}
+            />
           </div>
-        </SortableContext>
-      </DndContext>
+        ))}
+      </div>
+
+      {drag.dragIndex !== null && drag.pointerPos && (
+        <div 
+          className="list-item drag-overlay"
+          style={{
+            position: 'fixed',
+            left: `${drag.pointerPos.x - drag.dragOffset.x}px`,
+            top: `${drag.pointerPos.y - drag.dragOffset.y}px`,
+            width: `${drag.itemRefs.current[drag.dragIndex]?.offsetWidth || 0}px`,
+            flexDirection: 'column',
+            alignItems: 'stretch',
+            padding: '8px 12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="drag-handle">
+              ⋮⋮
+            </div>
+            <span style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+              {selected[drag.dragIndex].id === 'mur_purr' ? (
+                <img src="/cat.png" alt="Cat" style={{ width: '45px', height: '30px', borderRadius: '15px', objectFit: 'cover', verticalAlign: 'middle', marginRight: '10px' }} />
+              ) : null}
+              {t(selected[drag.dragIndex].title)}
+            </span>
+            <button className="remove-btn">×</button>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            readOnly
+            value={volumes[selected[drag.dragIndex].id] ?? audioPlayer.getTrackVolume(selected[drag.dragIndex].id, selected[drag.dragIndex].type)}
+            style={{ marginTop: '4px', width: '100%', pointerEvents: 'none' }}
+          />
+        </div>
+      )}
 
       <h2>{t('soundsAndMusic')}</h2>
 
@@ -270,7 +389,7 @@ const App = () => {
             <button 
               className="button" 
               onClick={() => toggleItem(item)}
-              style={item.id === 'mur_purr' ? { background: 'transparent', padding: 0, border: 'none', boxShadow: 'none', display: 'flex', alignItems: 'center' } : undefined}
+              style={item.id === 'mur_purr' ? { background: 'transparent', border: 'none', boxShadow: 'none', padding: '4px 12px', display: 'flex', alignItems: 'center' } : undefined}
             >
               {item.id === 'mur_purr' ? (
                 <img 
@@ -286,8 +405,6 @@ const App = () => {
           </div>
         ))}
       </div>
-
-
 
       <br />
 
