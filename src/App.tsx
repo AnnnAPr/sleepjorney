@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import './index.css';
 import './i18n';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +7,8 @@ import type { AudioItem } from './types/audio';
 import { audioPlayer } from './audio/player';
 import { useTimer } from './hooks/useTimer';
 import { useDragSort } from './hooks/useDragSort';
+import { useCustomSounds } from './hooks/useCustomSounds';
+import { useRef } from 'react';
 
 const TIMER_OPTIONS = [1, 15, 30, 60, 120];
 
@@ -39,6 +41,18 @@ const App = () => {
   
   // Track forces re-renders for volume changes when they happen directly on player
   const [volumes, setVolumes] = useState<Record<string, number>>({});
+
+  const { customSounds, addSoundFromFile, removeSound } = useCustomSounds();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Any custom sounds in 'selected' might have stale URIs before resolution.
+  // We enrich the 'selected' items with latest metadata from built-in and custom sounds.
+  const enrichedSelected = useMemo(() => {
+    return selected.map(s => {
+      const live = [...customSounds, ...AUDIO_ITEMS].find(item => item.id === s.id);
+      return live ? { ...live, volume: s.volume } : s;
+    });
+  }, [selected, customSounds]);
 
   const onEnd = useCallback(() => {
 
@@ -85,28 +99,28 @@ const App = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const toggleItem = (item: AudioItem): void => {
+  const toggleItem = useCallback((item: AudioItem): void => {
     if (item.premium && !isPremium) {
       setIsModalOpen(true);
       return;
     }
-
+ 
     setSelected((prev) => {
       const exists = prev.find((i) => i.id === item.id);
       return exists
         ? prev.filter((i) => i.id !== item.id)
         : [...prev, item];
     });
-  };
+  }, [isPremium]);
 
-  const removeFromQueue = (id: string): void => {
+  const removeFromQueue = useCallback((id: string): void => {
     setSelected((prev) => prev.filter((i) => i.id !== id));
-  };
+  }, []);
 
   // Sync Mix while playing/adding/removing (only in 'all' mode)
   useEffect(() => {
     if (isPlaying && playMode === 'all') {
-      audioPlayer.syncTracks(selected);
+      audioPlayer.syncTracks(enrichedSelected);
       // Auto-pause if we removed the last track — defer setState out of the effect body
       if (selected.length === 0) {
         audioPlayer.stop();
@@ -116,7 +130,7 @@ const App = () => {
         }, 0);
       }
     }
-  }, [selected, isPlaying, playMode, timer]);
+  }, [enrichedSelected, isPlaying, playMode, timer]);
 
   const playCurrentInQueue = useCallback((index: number, queue: AudioItem[]) => {
     playSequential(index, queue, setQueueIndex);
@@ -135,7 +149,7 @@ const App = () => {
 
       if (playMode === 'one') {
         // Sequential mode: play from current queue position
-        playCurrentInQueue(queueIndex, selected);
+        playCurrentInQueue(queueIndex, enrichedSelected);
       } else {
         // All-at-once mode
         if (timer.seconds > 0) {
@@ -143,7 +157,7 @@ const App = () => {
           timer.resume();
         } else {
           audioPlayer.reset();
-          audioPlayer.syncTracks(selected);
+          audioPlayer.syncTracks(enrichedSelected);
           audioPlayer.play();
 
           const minutes = activeTimer ?? customMinutes;
@@ -157,18 +171,23 @@ const App = () => {
     }
   };
 
-  const handleVolumeChange = (id: string, volumeString: string) => {
+  const handleVolumeChange = useCallback((id: string, volumeString: string) => {
     const vol = parseFloat(volumeString);
     audioPlayer.setTrackVolume(id, vol);
     setVolumes(prev => ({ ...prev, [id]: vol }));
-  };
+  }, []);
 
   const drag = useDragSort<AudioItem>(selected, (newSelected) => {
     setSelected(newSelected);
     // Whenever order is changed while playing in 'Play queue' mode, the top sound should start to play.
     if (isPlaying && playMode === 'one' && newSelected.length > 0) {
       setQueueIndex(0);
-      playSequential(0, newSelected, setQueueIndex);
+      // We must enrich the newly sorted list immediately for playback
+      const freshItems = newSelected.map(s => {
+        const live = [...customSounds, ...AUDIO_ITEMS].find(item => item.id === s.id);
+        return live ? { ...live, volume: s.volume } : s;
+      });
+      playSequential(0, freshItems, setQueueIndex);
     }
   });
 
@@ -181,6 +200,19 @@ const App = () => {
 
   return (
     <div className="container">
+      <input
+        type="file"
+        ref={fileInputRef}
+        style={{ display: 'none' }}
+        accept="audio/*"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            addSoundFromFile(file);
+            e.target.value = ''; // Reset for same-file re-upload
+          }
+        }}
+      />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '35px' }}>
           <h1 style={{ margin: 0 }}>SleepJorney</h1>
@@ -298,8 +330,8 @@ const App = () => {
       </div>
 
       <div className="list">
-        {selected.length === 0 && <p style={{color: '#9ca3af', fontStyle: 'italic', fontSize: '0.9rem'}}>Empty. Select sounds below!</p>}
-        {selected.map((item, idx) => (
+        {enrichedSelected.length === 0 && <p style={{color: '#9ca3af', fontStyle: 'italic', fontSize: '0.9rem'}}>Empty. Select sounds below!</p>}
+        {enrichedSelected.map((item, idx) => (
           <div 
             key={item.id} 
             ref={drag.setItemRef(idx)}
@@ -363,10 +395,10 @@ const App = () => {
               ⋮⋮
             </div>
             <span style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-              {selected[drag.dragIndex].id === 'mur_purr' ? (
+              {enrichedSelected[drag.dragIndex].id === 'mur_purr' ? (
                 <img src="/cat.png" alt="Cat" style={{ width: '45px', height: '30px', borderRadius: '15px', objectFit: 'cover', verticalAlign: 'middle', marginRight: '10px' }} />
               ) : null}
-              {t(selected[drag.dragIndex].title)}
+              {t(enrichedSelected[drag.dragIndex].title)}
             </span>
             <button className="remove-btn">×</button>
           </div>
@@ -376,21 +408,40 @@ const App = () => {
             max="1"
             step="0.05"
             readOnly
-            value={volumes[selected[drag.dragIndex].id] ?? audioPlayer.getTrackVolume(selected[drag.dragIndex].id, selected[drag.dragIndex].type)}
+            value={volumes[enrichedSelected[drag.dragIndex].id] ?? audioPlayer.getTrackVolume(enrichedSelected[drag.dragIndex].id, enrichedSelected[drag.dragIndex].type)}
             style={{ marginTop: '4px', width: '100%', pointerEvents: 'none' }}
           />
         </div>
       )}
 
-      <h2>{t('soundsAndMusic')}</h2>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+        <h2 style={{ margin: 0 }}>{t('soundsAndMusic')}</h2>
+        <button
+          className="button active"
+          style={{ marginLeft: 'auto', padding: '4px 10px', fontSize: '0.85rem' }}
+          onClick={() => {
+            if (!isPremium) {
+              setIsModalOpen(true);
+            } else {
+              fileInputRef.current?.click();
+            }
+          }}
+        >
+          + {t('My sounds') || 'My sounds'}
+        </button>
+      </div>
 
       <div className="list">
-        {AUDIO_ITEMS.filter(item => !selected.find(s => s.id === item.id)).map((item) => (
-          <div key={item.id} className="list-item">
+        {[...customSounds, ...AUDIO_ITEMS].filter(item => !selected.find(s => s.id === item.id)).map((item) => (
+          <div key={item.id} className="list-item" style={{ gap: '8px' }}>
             <button 
               className="button" 
               onClick={() => toggleItem(item)}
-              style={item.id === 'mur_purr' ? { background: 'transparent', border: 'none', boxShadow: 'none', padding: '4px 12px', display: 'flex', alignItems: 'center' } : undefined}
+              style={{
+                flex: 1,
+                textAlign: 'left',
+                ...(item.id === 'mur_purr' ? { background: 'transparent', border: 'none', boxShadow: 'none', padding: '4px 12px', display: 'flex', alignItems: 'center' } : {})
+              }}
             >
               {item.id === 'mur_purr' ? (
                 <img 
@@ -399,10 +450,27 @@ const App = () => {
                   style={{ height: '48px', width: 'auto', borderRadius: '6px', margin: '-6px 0 -6px -4px' }} 
                 />
               ) : (
-                t(item.title)
+                <>
+                  {t(item.title)}
+                  {item.premium && !isPremium ? ' 🔒' : ''}
+                </>
               )}
-              {item.premium && !isPremium ? ' 🔒' : ''}
             </button>
+            {item.isCustom && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span title="Custom Sound">🎵</span>
+                <button 
+                  className="remove-btn" 
+                  style={{ padding: '2px 6px', fontSize: '0.8rem' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeSound(item);
+                  }}
+                >
+                  🗑️
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>

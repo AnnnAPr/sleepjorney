@@ -1,10 +1,20 @@
 import type { AudioItem } from '../types/audio';
+import { Capacitor } from '@capacitor/core';
 
 class AudioPlayer {
   private activeAudios: Map<string, HTMLAudioElement> = new Map();
+  private trackSources: Map<string, string> = new Map();
   private userVolumes: Map<string, number> = new Map();
   private isPlaying = false;
   private globalVolume = 1.0;
+  
+  private resolveSrc(src: string): string {
+    // DO NOT convert blob: or data: URLs as Capacitor might prepend local host paths and corrupt them.
+    if (src.startsWith('blob:') || src.startsWith('data:')) {
+      return src;
+    }
+    return Capacitor.convertFileSrc(src);
+  }
 
   // Syncs the active audios with the provided list (the "Queue" is a "Mixer")
   syncTracks(tracks: AudioItem[]): void {
@@ -16,13 +26,17 @@ class AudioPlayer {
         audio.pause();
         audio.src = '';
         this.activeAudios.delete(id);
+        this.trackSources.delete(id);
       }
     }
 
-    // Add new tracks
+    // Add or update tracks
     for (const track of tracks) {
-      if (!this.activeAudios.has(track.id)) {
-        const audio = new Audio(track.src);
+      const convertedSrc = this.resolveSrc(track.src);
+      const existing = this.activeAudios.get(track.id);
+
+      if (!existing) {
+        const audio = new Audio(convertedSrc);
         audio.loop = true; // Everything loops infinitely!
         
         // Default volumes based on type
@@ -36,10 +50,38 @@ class AudioPlayer {
         
         audio.volume = this.userVolumes.get(track.id)! * this.globalVolume;
         this.activeAudios.set(track.id, audio);
+        this.trackSources.set(track.id, convertedSrc);
         
+        // Retry logic for transient failures (e.g. resolution timing)
+        audio.onerror = () => {
+          if (audio.src && !audio.src.includes('error-retried')) {
+            // ONLY append query params to standard web URLs!
+            // blob: and data: URLs will break if we add ?
+            const isLocal = audio.src.startsWith('blob:') || audio.src.startsWith('data:');
+            
+            console.warn(`Retrying audio load for ${track.title}`);
+            const originalSrc = audio.src;
+            audio.src = ''; // reset
+            setTimeout(() => {
+              audio.src = isLocal ? originalSrc : (originalSrc + (originalSrc.includes('?') ? '&' : '?') + 'error-retried=1');
+              audio.load();
+              if (this.isPlaying) audio.play().catch(() => {});
+            }, 500);
+          }
+        };
+
         // If the player is already running, instantly start the new track too
         if (this.isPlaying) {
           audio.play().catch(e => console.error('AudioPlayer play failed', e));
+        }
+      } else if (this.trackSources.get(track.id) !== convertedSrc) {
+        // Source changed (common for dynamic Blob URLs on web)
+        const wasPlaying = !existing.paused;
+        this.trackSources.set(track.id, convertedSrc);
+        existing.src = convertedSrc;
+        existing.load(); // Force browser to re-examine the new source
+        if (wasPlaying || this.isPlaying) {
+          existing.play().catch(e => console.error('AudioPlayer source update play failed', e));
         }
       }
     }
@@ -84,8 +126,10 @@ class AudioPlayer {
       audio.src = '';
     }
     this.activeAudios.clear();
+    this.trackSources.clear();
 
-    const audio = new Audio(track.src);
+    const convertedSrc = this.resolveSrc(track.src);
+    const audio = new Audio(convertedSrc);
     audio.loop = false;
 
     let defaultVol = track.type === 'music' ? 0.35 : 1.0;
@@ -96,8 +140,24 @@ class AudioPlayer {
     audio.volume = this.userVolumes.get(track.id)! * this.globalVolume;
 
     audio.addEventListener('ended', onEnded, { once: true });
+    
+    // Retry logic for sequential playback too
+    audio.onerror = () => {
+      if (audio.src && !audio.src.includes('error-retried')) {
+        const isLocal = audio.src.startsWith('blob:') || audio.src.startsWith('data:');
+        console.warn(`Retrying sequential audio load for ${track.title}`);
+        const originalSrc = audio.src;
+        audio.src = ''; 
+        setTimeout(() => {
+          audio.src = isLocal ? originalSrc : (originalSrc + (originalSrc.includes('?') ? '&' : '?') + 'error-retried=1');
+          audio.load();
+          audio.play().catch(() => {});
+        }, 500);
+      }
+    };
 
     this.activeAudios.set(track.id, audio);
+    this.trackSources.set(track.id, convertedSrc);
     this.isPlaying = true;
     audio.play().catch(e => console.error('AudioPlayer playSingle failed', e));
 
@@ -114,6 +174,7 @@ class AudioPlayer {
   reset(): void {
     this.stop();
     this.activeAudios.clear();
+    this.trackSources.clear();
     this.globalVolume = 1.0;
   }
   

@@ -7,4 +7,6 @@ export type AudioItem = {
   type: AudioType;
   premium: boolean;
   volume?: number;
+  isCustom?: boolean;
+  mimeType?: string;
 };
