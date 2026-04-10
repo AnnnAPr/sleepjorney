@@ -12,18 +12,22 @@ import { useRef } from 'react';
 
 const TIMER_OPTIONS = [1, 15, 30, 60, 120];
 
-// Defined outside the component: no closures, no hooks, no stale refs.
 function playSequential(
   index: number,
   queue: AudioItem[],
-  onIndexChange: (i: number) => void
+  onIndexChange: (i: number) => void,
+  onPlayTracker: (id: string) => void
 ): void {
   if (queue.length === 0) return;
   const safeIndex = index % queue.length;
-  audioPlayer.playSingle(queue[safeIndex], () => {
+  const track = queue[safeIndex];
+  
+  onPlayTracker(track.id);
+  
+  audioPlayer.playSingle(track, () => {
     const nextIndex = (safeIndex + 1) % queue.length;
     onIndexChange(nextIndex);
-    playSequential(nextIndex, queue, onIndexChange);
+    playSequential(nextIndex, queue, onIndexChange, onPlayTracker);
   });
 }
 
@@ -44,9 +48,8 @@ const App = () => {
 
   const { customSounds, addSoundFromFile, removeSound } = useCustomSounds();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const lastPlayedId = useRef<string | null>(null);
 
-  // Any custom sounds in 'selected' might have stale URIs before resolution.
-  // We enrich the 'selected' items with latest metadata from built-in and custom sounds.
   const enrichedSelected = useMemo(() => {
     return selected.map(s => {
       const live = [...customSounds, ...AUDIO_ITEMS].find(item => item.id === s.id);
@@ -64,16 +67,13 @@ const App = () => {
 
   const timer = useTimer(onEnd);
 
-  // FADING LOGIC
   useEffect(() => {
     if (!isPlaying) return;
     if (timer.totalSeconds <= 0) return;
 
-    // Threshold calculation: 5 mins if default, 60 seconds if < 5 mins
     const threshold = timer.totalSeconds > 300 ? 300 : 60;
 
     if (timer.seconds <= threshold && timer.seconds > 0) {
-      // Linear fade out
       const calculatedVolume = timer.seconds / threshold;
       audioPlayer.setGlobalVolume(calculatedVolume);
     } else if (timer.seconds > threshold) {
@@ -81,7 +81,6 @@ const App = () => {
     }
   }, [timer.seconds, timer.totalSeconds, isPlaying]);
 
-  // Sync state with lock-screen commands
   useEffect(() => {
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
@@ -117,24 +116,56 @@ const App = () => {
     setSelected((prev) => prev.filter((i) => i.id !== id));
   }, []);
 
-  // Sync Mix while playing/adding/removing (only in 'all' mode)
+  const onPlayTracker = useCallback((id: string) => {
+    lastPlayedId.current = id;
+  }, []);
+
+
   useEffect(() => {
-    if (isPlaying && playMode === 'all') {
+    if (!isPlaying) {
+      lastPlayedId.current = null; // Clear tracking when stopped
+      return;
+    }
+
+    if (playMode === 'all') {
       audioPlayer.syncTracks(enrichedSelected);
-      // Auto-pause if we removed the last track — defer setState out of the effect body
-      if (selected.length === 0) {
+    } else {
+      if (enrichedSelected.length === 0) {
         audioPlayer.stop();
-        setTimeout(() => {
-          setIsPlaying(false);
-          timer.stop();
-        }, 0);
+        setTimeout(() => { setIsPlaying(false); timer.stop(); }, 0);
+        return;
+      }
+
+      const activeId = lastPlayedId.current;
+      if (activeId) {
+        const currentPos = enrichedSelected.findIndex(s => s.id === activeId);
+        
+        if (currentPos !== -1) {
+          if (currentPos !== queueIndex) {
+            setQueueIndex(currentPos);
+          }
+        } else {
+          audioPlayer.reset();
+          
+          const nextIndex = queueIndex >= enrichedSelected.length ? 0 : queueIndex;
+          setQueueIndex(nextIndex);
+          playSequential(nextIndex, enrichedSelected, setQueueIndex, onPlayTracker);
+        }
       }
     }
-  }, [enrichedSelected, isPlaying, playMode, timer]);
+
+    if (selected.length === 0) {
+      audioPlayer.stop();
+      setTimeout(() => {
+        setIsPlaying(false);
+        timer.stop();
+      }, 0);
+    }
+  }, [enrichedSelected, isPlaying, playMode, queueIndex, timer, selected.length, onPlayTracker]);
 
   const playCurrentInQueue = useCallback((index: number, queue: AudioItem[]) => {
-    playSequential(index, queue, setQueueIndex);
-  }, []);
+    playSequential(index, queue, setQueueIndex, onPlayTracker);
+  }, [onPlayTracker]);
 
   const togglePlayback = (): void => {
     if (selected.length === 0) return;
@@ -148,10 +179,8 @@ const App = () => {
 
 
       if (playMode === 'one') {
-        // Sequential mode: play from current queue position
         playCurrentInQueue(queueIndex, enrichedSelected);
       } else {
-        // All-at-once mode
         if (timer.seconds > 0) {
           audioPlayer.play();
           timer.resume();
@@ -179,21 +208,18 @@ const App = () => {
 
   const drag = useDragSort<AudioItem>(selected, (newSelected) => {
     setSelected(newSelected);
-    // Whenever order is changed while playing in 'Play queue' mode, the top sound should start to play.
     if (isPlaying && playMode === 'one' && newSelected.length > 0) {
       setQueueIndex(0);
-      // We must enrich the newly sorted list immediately for playback
       const freshItems = newSelected.map(s => {
         const live = [...customSounds, ...AUDIO_ITEMS].find(item => item.id === s.id);
         return live ? { ...live, volume: s.volume } : s;
       });
-      playSequential(0, freshItems, setQueueIndex);
+      playCurrentInQueue(0, freshItems);
     }
   });
 
   const onQueuePointerDown = (idx: number) => (e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
-    // Don't start drag if clicking slider or button
     if (target.tagName === 'INPUT' || target.closest('button')) return;
     drag.onPointerDown(idx)(e);
   };

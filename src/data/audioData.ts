@@ -49,6 +49,13 @@ export const AUDIO_ITEMS: AudioItem[] = [
 
   // Paid sounds
   {
+    id: 'wellerman',
+    title: 'Wellerman',
+    src: '/sounds/wellerman.mp3',
+    type: 'music',
+    premium: true
+  },
+  {
     id: 'thunderstorm',
     title: 'Thunderstorm',
     src: '/sounds/thunder.mp3',
