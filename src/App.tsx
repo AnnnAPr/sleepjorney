@@ -209,12 +209,14 @@ const App = () => {
   const drag = useDragSort<AudioItem>(selected, (newSelected) => {
     setSelected(newSelected);
     if (isPlaying && playMode === 'one' && newSelected.length > 0) {
-      setQueueIndex(0);
-      const freshItems = newSelected.map(s => {
-        const live = [...customSounds, ...AUDIO_ITEMS].find(item => item.id === s.id);
-        return live ? { ...live, volume: s.volume } : s;
-      });
-      playCurrentInQueue(0, freshItems);
+      if (newSelected[0].id !== selected[0]?.id) {
+        setQueueIndex(0);
+        const freshItems = newSelected.map(s => {
+          const live = [...customSounds, ...AUDIO_ITEMS].find(item => item.id === s.id);
+          return live ? { ...live, volume: s.volume } : s;
+        });
+        playCurrentInQueue(0, freshItems);
+      }
     }
   });
 
