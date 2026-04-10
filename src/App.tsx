@@ -371,6 +371,9 @@ const App = () => {
               alignItems: 'stretch',
               padding: '8px 12px',
               cursor: 'grab',
+              touchAction: 'none',
+              WebkitUserSelect: 'none',
+              userSelect: 'none',
               opacity: drag.dragIndex === idx ? 0.4 : 1,
               borderTop: drag.hoverIndex === idx && drag.dragIndex !== null && drag.dragIndex !== idx 
                 ? '2px solid #3b82f6' 
