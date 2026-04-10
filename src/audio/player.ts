@@ -9,11 +9,12 @@ class AudioPlayer {
   private globalVolume = 1.0;
   
   private resolveSrc(src: string): string {
-    // DO NOT convert blob: or data: URLs as Capacitor might prepend local host paths and corrupt them.
-    if (src.startsWith('blob:') || src.startsWith('data:')) {
-      return src;
+    // Only convert native filesystem paths to WebView URLs
+    if (src.startsWith('file:')) {
+      return Capacitor.convertFileSrc(src);
     }
-    return Capacitor.convertFileSrc(src);
+    // Return relative paths (bundled assets), blob URLs, and standard HTTP URLs as-is
+    return src;
   }
 
   // Syncs the active audios with the provided list (the "Queue" is a "Mixer")
