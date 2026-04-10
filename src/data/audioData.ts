@@ -39,6 +39,13 @@ export const AUDIO_ITEMS: AudioItem[] = [
     type: 'music',
     premium: false
   },
+  {
+    id: 'violin',
+    title: 'Violin',
+    src: '/sounds/violin.mp3',
+    type: 'music',
+    premium: false
+  },
 
   // Paid sounds
   {
